@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using HandlebarsDotNet;
-using Jellyfin.Extensions.Json;
+// using Jellyfin.Extensions.Json;
 using Jellyfin.Plugin.Webhook.Helpers;
 
 namespace Jellyfin.Plugin.Webhook.Destinations
@@ -94,7 +94,7 @@ namespace Jellyfin.Plugin.Webhook.Destinations
         public string GetMessageBody(Dictionary<string, object> data)
         {
             return SendAllProperties
-                ? JsonSerializer.Serialize(data, JsonDefaults.Options)
+                ? JsonSerializer.Serialize(data)
                 : GetCompiledTemplate()(data);
         }
     }

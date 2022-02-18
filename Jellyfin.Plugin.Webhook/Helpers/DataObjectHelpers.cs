@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Jellyfin.Data.Entities;
 using Jellyfin.Plugin.Webhook.Destinations;
 using MediaBrowser.Controller;
@@ -51,6 +52,7 @@ namespace Jellyfin.Plugin.Webhook.Helpers
                 return dataObject;
             }
 
+            dataObject["item"] = item;
             dataObject["Timestamp"] = DateTime.Now;
             dataObject["UtcTimestamp"] = DateTime.UtcNow;
             dataObject["Name"] = item.Name.Escape();

@@ -1,12 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
+using Discord;
+using Discord.Webhook;
 using Jellyfin.Plugin.Webhook.Extensions;
 using MediaBrowser.Common.Net;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Webhook.Destinations.Discord
@@ -63,14 +68,74 @@ namespace Jellyfin.Plugin.Webhook.Destinations.Discord
                     data["BotUsername"] = option.Username;
                 }
 
-                var body = option.GetMessageBody(data);
-                _logger.LogDebug("SendAsync Body: {@Body}", body);
-                using var content = new StringContent(body, Encoding.UTF8, MediaTypeNames.Application.Json);
-                using var response = await _httpClientFactory
-                    .CreateClient(NamedClient.Default)
-                    .PostAsync(new Uri(option.WebhookUri), content)
+                // foreach (var (key, value) in data)
+                //     _logger.LogWarning("{@Key}: {@Value}", key, value);
+
+                // mine
+
+                string GetTitle()
+                {
+                    switch (Enum.Parse<NotificationType>((string)data["NotificationType"]))
+                    {
+                        case NotificationType.SessionStart:
+                            return
+                                $"Session started by {data["NotificationUsername"]} on {data["Client"]}({data["DeviceName"]})";
+                        case NotificationType.PlaybackStart:
+                            return
+                                $"{data["NotificationUsername"]} is playing {data["Name"]} on {data["ClientName"]}({data["DeviceName"]})";
+                        case NotificationType.PlaybackStop:
+                            return
+                                $"{data["NotificationUsername"]} stopped playing {data["Name"]} on {data["ClientName"]}({data["DeviceName"]})";
+                        case NotificationType.UserLockedOut:
+                            return $"User {data["NotificationUsername"]} has been locked out";
+                        case NotificationType.UserCreated:
+                            return $"User {data["NotificationUsername"]} has been created";
+                        case NotificationType.UserDeleted:
+                            return $"User {data["NotificationUsername"]} has been deleted";
+                        case NotificationType.PendingRestart:
+                            return "Server pending restart";
+                        case NotificationType.ItemAdded:
+                            return $"New content: {data["Name"]}";
+                    }
+
+                    return null;
+                }
+
+                string GetDescription()
+                {
+                    switch (Enum.Parse<NotificationType>((string)data["NotificationType"]))
+                    {
+                        case NotificationType.ItemAdded:
+                            return
+                                (string)data["Overview"];
+                    }
+
+                    return null;
+                }
+
+                var cl = new DiscordWebhookClient(option.WebhookUri);
+                // i wonder how someone, in a language with the violent splash of strong typing
+                // would use
+                // A FUCKING DICTIONARY
+                // INSTEAD OF A NORMAL FUCKING TYPE
+                // how mentally ill do you have to be to do that
+                // it's like a bri'ish person drinking milk instead of tea
+
+                await cl.SendMessageAsync(embeds: new List<Embed>
+                    {
+                        new EmbedBuilder
+                        {
+                            Color = new Color((uint)FormatColorCode(option.EmbedColor)),
+                            Description = GetDescription(),
+                            Title = GetTitle(),
+                            Timestamp = data.ContainsKey("UtcTimestamp") ? (DateTime)data["UtcTimestamp"] : null,
+                            ThumbnailUrl = data.ContainsKey("item")
+                                ? ((BaseItem)data["item"]).ImageInfos
+                                .FirstOrDefault(i => !i.IsLocalFile && i.Type == ImageType.Primary)?.Path
+                                : null
+                        }.Build()
+                    }, username: option.Username, avatarUrl: option.AvatarUrl, text: GetMentionType(option.MentionType))
                     .ConfigureAwait(false);
-                await response.LogIfFailedAsync(_logger).ConfigureAwait(false);
             }
             catch (HttpRequestException e)
             {
